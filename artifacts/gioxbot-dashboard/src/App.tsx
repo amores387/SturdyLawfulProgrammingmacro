@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Route, Switch, Link, useLocation, useParams, Router as WouterRouter } from 'wouter';
 import {
   Activity, AlertTriangle, ArrowUpRight, Bell, Bot, Check, ChevronRight, CircleHelp,
@@ -6,7 +6,7 @@ import {
   MoreHorizontal, Search, Settings,
   Shield, SlidersHorizontal, Sparkles, Terminal, UserRound, Wifi, X, Zap,
 } from 'lucide-react';
-import { activityEvents, commands, platforms, type ActivityEvent, type Command, type CommandCategory, type CommandStatus, type PlatformId } from '@/lib/data';
+import { activityEvents, commands, optionalBots, platforms, type ActivityEvent, type BotModule, type Command, type CommandCategory, type CommandStatus, type PlatformId } from '@/lib/data';
 import '@/index.css';
 
 const platformIcons: Record<PlatformId, typeof MessageCircle> = {
@@ -29,6 +29,25 @@ const statusTone: Record<CommandStatus, string> = {
 
 function cx(...parts: Array<string | false | undefined>) {
   return parts.filter(Boolean).join(' ');
+}
+
+function useLocalStorageState<T>(key: string, initialValue: T) {
+  const [value, setValue] = useState<T>(() => {
+    if (typeof window === 'undefined') return initialValue;
+    const stored = window.localStorage.getItem(key);
+    if (!stored) return initialValue;
+    try {
+      return JSON.parse(stored) as T;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue] as const;
 }
 
 function Logo() {
@@ -69,11 +88,11 @@ function StatusPill({ status, compact = false }: { status: CommandStatus; compac
   );
 }
 
-function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+function Sidebar({ open, onClose, commandCount }: { open: boolean; onClose: () => void; commandCount: number }) {
   const [location] = useLocation();
   const links = [
     { href: '/', label: 'Overview', icon: LayoutDashboard },
-    { href: '/commands', label: 'Commands', icon: CommandIcon, count: commands.length },
+    { href: '/commands', label: 'Commands', icon: CommandIcon, count: commandCount },
     { href: '/channels', label: 'Channels', icon: Wifi },
     { href: '/activity', label: 'Activity', icon: Activity },
   ];
@@ -143,16 +162,16 @@ function StatCard({ label, value, detail, icon: Icon, tone }: { label: string; v
   );
 }
 
-function PlatformCoverage() {
-  const total = commands.length;
+function PlatformCoverage({ commandList }: { commandList: Command[] }) {
+  const total = commandList.length;
   return (
     <section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6" data-testid="section-platform-coverage">
       <div className="mb-5 flex items-start justify-between"><div><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Surface map</div><h2 className="mt-1 text-[16px] font-extrabold tracking-[-.03em]">Platform coverage</h2></div><Link href="/channels" className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" data-testid="link-view-channels">View channels <ArrowUpRight size={13} /></Link></div>
       <div className="space-y-4">
         {platforms.map((platform) => {
-          const operational = commands.filter((command) => command.platforms[platform.id] === 'operational').length;
-          const partial = commands.filter((command) => command.platforms[platform.id] === 'partial').length;
-          const percentage = Math.round(((operational + partial * .5) / total) * 100);
+           const operational = commandList.filter((command) => command.platforms[platform.id] === 'operational').length;
+           const partial = commandList.filter((command) => command.platforms[platform.id] === 'partial').length;
+           const percentage = total ? Math.round(((operational + partial * .5) / total) * 100) : 0;
           return <div key={platform.id} className="group" data-testid={`coverage-row-${platform.id}`}>
             <div className="mb-2 flex items-center gap-3"><PlatformMark id={platform.id} /><div className="min-w-0 flex-1"><div className="flex items-center justify-between"><span className="text-[12px] font-bold">{platform.name}</span><span className="font-mono text-[10px] text-muted-foreground">{operational} live · {partial} partial</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full transition-all duration-700" style={{ width: `${percentage}%`, backgroundColor: platform.accent }} /></div></div><span className="w-9 text-right font-mono text-[11px] font-medium text-foreground">{percentage}%</span></div>
            </div>;
@@ -187,20 +206,20 @@ function CommandRow({ command, onSelect, selected = false }: { command: Command;
   </button>;
 }
 
-function Inventory({ compact = false, onSelect }: { compact?: boolean; onSelect: (id: string) => void }) {
+function Inventory({ compact = false, onSelect, commandList }: { compact?: boolean; onSelect: (id: string) => void; commandList: Command[] }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<'All' | CommandCategory>('All');
   const [platformFilter, setPlatformFilter] = useState<'all' | PlatformId>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | CommandStatus>('all');
-  const shown = useMemo(() => commands.filter((command) => {
+  const shown = useMemo(() => commandList.filter((command) => {
     const matchesText = `${command.name} ${command.description} ${command.category}`.toLowerCase().includes(query.toLowerCase());
     const matchesCategory = category === 'All' || command.category === category;
     const matchesPlatform = platformFilter === 'all' || command.platforms[platformFilter] !== 'unsupported';
     const matchesStatus = statusFilter === 'all' || command.status === statusFilter;
     return matchesText && matchesCategory && matchesPlatform && matchesStatus;
-  }).slice(0, compact ? 5 : commands.length), [query, category, platformFilter, statusFilter, compact]);
+  }).slice(0, compact ? 5 : commandList.length), [query, category, platformFilter, statusFilter, compact, commandList]);
   return <section className="panel-shadow overflow-hidden rounded-2xl border border-border bg-card" data-testid="section-command-inventory">
-    <div className="border-b border-border p-5 md:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Registry</div><h2 className="mt-1 text-[16px] font-extrabold tracking-[-.03em]">{compact ? 'Command inventory' : 'All commands'}</h2></div>{compact && <Link href="/commands" className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" data-testid="link-view-all-commands">View full catalog <ArrowUpRight size={13} /></Link>}</div>
+      <div className="border-b border-border p-5 md:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Registry</div><h2 className="mt-1 text-[16px] font-extrabold tracking-[-.03em]">{compact ? 'Command inventory' : 'All commands'}</h2></div>{compact && <Link href="/commands" className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" data-testid="link-view-all-commands">View full catalog <ArrowUpRight size={13} /></Link>}</div>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row"><label className="relative flex-1"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands or descriptions" className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-[11px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15" data-testid="input-command-search" /></label><div className="flex gap-1.5 overflow-x-auto">{(['All', 'Moderation', 'Utility', 'Messaging', 'Automation', 'Admin'] as const).map((item) => <button key={item} onClick={() => setCategory(item)} className={cx('whitespace-nowrap rounded-lg px-3 text-[10px] font-bold transition-colors', category === item ? 'bg-[#203346] text-[#B9F0E9] dark:bg-[#66DCD0] dark:text-[#172E3A]' : 'bg-secondary text-muted-foreground hover:text-foreground')} data-testid={`filter-category-${item.toLowerCase()}`}>{item}</button>)}</div></div>
       {!compact && <div className="mt-2 flex flex-wrap gap-2">
         <label className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground"><span>Platform</span><select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value as 'all' | PlatformId)} className="bg-transparent text-[10px] font-bold normal-case tracking-normal text-foreground outline-none" data-testid="filter-platform"><option value="all">All surfaces</option>{platforms.map((platform) => <option value={platform.id} key={platform.id}>{platform.name}</option>)}</select></label>
@@ -208,12 +227,75 @@ function Inventory({ compact = false, onSelect }: { compact?: boolean; onSelect:
         <span className="ml-auto self-center font-mono text-[10px] text-muted-foreground">{shown.length} matches</span>
       </div>}
     </div>
-    {shown.length > 0 ? <div>{shown.map((command) => <CommandRow command={command} onSelect={onSelect} key={command.id} />)}</div> : <EmptyResults onReset={() => { setQuery(''); setCategory('All'); setPlatformFilter('all'); setStatusFilter('all'); }} />}
+     {shown.length > 0 ? <div>{shown.map((command) => <CommandRow command={command} onSelect={onSelect} key={command.id} />)}</div> : <EmptyResults onReset={() => { setQuery(''); setCategory('All'); setPlatformFilter('all'); setStatusFilter('all'); }} />}
   </section>;
 }
 
 function EmptyResults({ onReset }: { onReset: () => void }) {
   return <div className="flex flex-col items-center justify-center px-6 py-14 text-center" data-testid="empty-command-results"><div className="mb-3 flex size-11 items-center justify-center rounded-2xl bg-secondary text-muted-foreground"><Search size={18} /></div><p className="text-[13px] font-bold">No commands found</p><p className="mt-1 max-w-[250px] text-[11px] leading-relaxed text-muted-foreground">Try a different term or clear the category filter.</p><button onClick={onReset} className="mt-4 rounded-lg bg-secondary px-3 py-2 text-[10px] font-bold hover:bg-border" data-testid="button-reset-command-search">Clear filters</button></div>;
+}
+
+type NewCommandInput = {
+  name: string;
+  description: string;
+  category: CommandCategory;
+  targetPlatforms: PlatformId[];
+  syntax: string;
+};
+
+function CommandComposer({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (input: NewCommandInput) => void }) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState<CommandCategory>('Utility');
+  const [targetPlatforms, setTargetPlatforms] = useState<PlatformId[]>(['telegram', 'facebook', 'discord']);
+  const [syntax, setSyntax] = useState('');
+
+  if (!open) return null;
+
+  const togglePlatform = (id: PlatformId) => {
+    setTargetPlatforms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim() || !description.trim() || targetPlatforms.length === 0) return;
+    onCreate({ name, description, category, targetPlatforms, syntax });
+    setName('');
+    setDescription('');
+    setCategory('Utility');
+    setTargetPlatforms(['telegram', 'facebook', 'discord']);
+    setSyntax('');
+    onClose();
+  };
+
+  return <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#152033]/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="new-command-title" data-testid="dialog-new-command">
+    <form onSubmit={submit} className="panel-shadow max-h-[92vh] w-full max-w-[560px] overflow-y-auto rounded-2xl border border-border bg-card p-5 md:p-7">
+      <div className="flex items-start justify-between gap-4">
+        <div><p className="font-mono text-[10px] uppercase tracking-[.14em] text-primary">Registry / create</p><h2 id="new-command-title" className="mt-1 text-[20px] font-extrabold tracking-[-.04em]">Add a new command</h2><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Define it once, then choose where Gioxbot should make it available.</p></div>
+        <button type="button" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Close new command form" data-testid="button-close-new-command"><X size={17} /></button>
+      </div>
+      <div className="mt-6 space-y-4">
+        <label className="block text-[11px] font-bold">Command name<div className="mt-2 flex h-10 items-center rounded-lg border border-input bg-background focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"><span className="pl-3 font-mono text-[12px] text-muted-foreground">/</span><input value={name.replace(/^\//, '')} onChange={(event) => setName(event.target.value)} placeholder="broadcast" className="min-w-0 flex-1 bg-transparent px-1.5 pr-3 text-[12px] outline-none" autoFocus data-testid="input-new-command-name" /></div></label>
+        <label className="block text-[11px] font-bold">What does it do?<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the job this command should perform." className="mt-2 min-h-[80px] w-full resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-[12px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" data-testid="input-new-command-description" /></label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-[11px] font-bold">Category<select value={category} onChange={(event) => setCategory(event.target.value as CommandCategory)} className="mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 text-[11px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" data-testid="select-new-command-category">{(['Moderation', 'Utility', 'Messaging', 'Automation', 'Admin'] as const).map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
+          <label className="block text-[11px] font-bold">Syntax <input value={syntax} onChange={(event) => setSyntax(event.target.value)} placeholder="/broadcast [message]" className="mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 font-mono text-[11px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" data-testid="input-new-command-syntax" /></label>
+        </div>
+        <fieldset><legend className="text-[11px] font-bold">Apply to surfaces</legend><div className="mt-2 grid gap-2 sm:grid-cols-3">{platforms.map((platform) => { const selected = targetPlatforms.includes(platform.id); return <button type="button" key={platform.id} onClick={() => togglePlatform(platform.id)} className={cx('flex items-center gap-2 rounded-xl border p-3 text-left transition-colors', selected ? 'border-primary bg-[#E8F6F3] dark:bg-[#183C39]' : 'border-border bg-background hover:bg-secondary')} aria-pressed={selected} data-testid={`toggle-new-command-${platform.id}`}><PlatformMark id={platform.id} /><span className="min-w-0 flex-1 text-[10px] font-bold">{platform.name}</span>{selected && <Check size={14} className="text-primary" />}</button>; })}</div></fieldset>
+      </div>
+      <div className="mt-7 flex flex-col-reverse gap-2 border-t border-border pt-5 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} className="rounded-lg px-4 py-2.5 text-[11px] font-bold text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="button-cancel-new-command">Cancel</button><button type="submit" disabled={!name.trim() || !description.trim() || targetPlatforms.length === 0} className="rounded-lg bg-[#203346] px-4 py-2.5 text-[11px] font-bold text-[#C5F1EB] transition-colors hover:bg-[#29465D] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#65D9CE] dark:text-[#172E3A]" data-testid="button-create-command"><Sparkles size={14} className="mr-1.5 inline" /> Create command</button></div>
+    </form>
+  </div>;
+}
+
+function OptionalBotsPanel({ modules, onToggle }: { modules: BotModule[]; onToggle: (id: string) => void }) {
+  return <section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6" data-testid="section-optional-bots">
+    <div className="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.14em] text-primary">Optional bots</p><h3 className="mt-1 text-[16px] font-extrabold tracking-[-.03em]">Extend Gioxbot when you need it.</h3><p className="mt-1 max-w-xl text-[11px] leading-relaxed text-muted-foreground">Apply a bot module to add a focused workflow without changing your core command desk.</p></div><span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{modules.filter((module) => module.enabled).length} applied</span></div>
+    <div className="grid gap-3 md:grid-cols-2">{modules.map((module) => { const platform = platforms.find((item) => item.id === module.platform); const waiting = module.status === 'needs-connection'; return <div key={module.id} className={cx('rounded-xl border p-4 transition-colors', module.enabled ? 'border-primary/50 bg-[#F0FAF8] dark:bg-[#183C39]' : 'border-border bg-background')} data-testid={`optional-bot-${module.id}`}>
+      <div className="flex items-start gap-3"><PlatformMark id={module.platform} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-[12px] font-extrabold">{module.name}</h4><span className={cx('rounded-full px-2 py-1 font-mono text-[8px] uppercase tracking-wider', module.enabled ? 'bg-[#DDF3F0] text-[#167F77] dark:bg-[#204844] dark:text-[#7CE0D6]' : waiting ? 'bg-[#FFF1D7] text-[#986119] dark:bg-[#4B361A] dark:text-[#F4C875]' : 'bg-secondary text-muted-foreground')}>{module.enabled ? 'Applied' : waiting ? 'Connection needed' : 'Available'}</span></div><p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{module.description}</p></div></div>
+      <div className="mt-4 flex items-end justify-between gap-3"><div><p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{platform?.shortLabel} · {module.commandCount} commands</p><div className="mt-2 flex flex-wrap gap-1.5">{module.capabilities.map((capability) => <span key={capability} className="rounded-md bg-secondary px-2 py-1 text-[9px] text-muted-foreground">{capability}</span>)}</div></div><button onClick={() => onToggle(module.id)} className={cx('shrink-0 rounded-lg px-3 py-2 text-[10px] font-bold transition-colors', module.enabled ? 'border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground' : 'bg-[#203346] text-[#C5F1EB] hover:bg-[#29465D] dark:bg-[#65D9CE] dark:text-[#172E3A]')} aria-pressed={module.enabled} data-testid={`button-apply-bot-${module.id}`}>{module.enabled ? 'Remove' : 'Apply bot'}</button></div>
+    </div>; })}</div>
+  </section>;
 }
 
 function CommandDetail({ command, onClose }: { command: Command; onClose: () => void }) {
@@ -230,25 +312,31 @@ function CommandDetail({ command, onClose }: { command: Command; onClose: () => 
   </aside>;
 }
 
-function OverviewPage() {
+function OverviewPage({ commandList }: { commandList: Command[] }) {
   const [, navigate] = useLocation();
-  return <PageFrame title="Overview" eyebrow="Command control / Overview"><div className="mx-auto max-w-[1240px] space-y-5">
+  const total = commandList.length;
+  const operational = commandList.filter((command) => command.status === 'operational').length;
+  const attention = commandList.filter((command) => command.status !== 'operational').length;
+  const coverage = total ? Math.round((operational / total) * 100) : 0;
+  const calls = commandList.reduce((sum, command) => sum + command.usage, 0);
+  return <PageFrame title="Overview" eyebrow="Command control / Overview" commandCount={total}><div className="mx-auto max-w-[1240px] space-y-5">
     <div className="fade-up flex flex-col justify-between gap-3 pt-1 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Good morning, Alex</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em] md:text-[32px]">The desk is clear.</h2><p className="mt-1 text-[12px] text-muted-foreground">A quick read on your command surface across every connected channel.</p></div><div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 font-mono text-[10px] text-muted-foreground"><span className="size-1.5 rounded-full bg-[#27B8B1]" /> Registry synced 18m ago</div></div>
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total commands" value="14" detail="across 3 platforms" icon={CommandIcon} tone="ink" /><StatCard label="Live coverage" value="78%" detail="11 of 14 commands" icon={Gauge} tone="teal" /><StatCard label="Needs attention" value="06" detail="partial or unsupported" icon={AlertTriangle} tone="amber" /><StatCard label="Calls this week" value="3,842" detail="+8.4% vs last week" icon={Activity} tone="teal" /></div>
-    <div className="grid gap-5 xl:grid-cols-[1.18fr_.82fr]"><PlatformCoverage /><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-1 flex items-start justify-between"><div><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Signal feed</div><h2 className="mt-1 text-[16px] font-extrabold tracking-[-.03em]">Recent activity</h2></div><Link href="/activity" className="text-muted-foreground hover:text-foreground" aria-label="View all activity" data-testid="link-view-all-activity"><ArrowUpRight size={16} /></Link></div><ActivityList compact /></section></div>
-    <Inventory compact onSelect={(id) => navigate(`/commands/${id}`)} />
+     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total commands" value={String(total)} detail={`across ${platforms.length} platforms`} icon={CommandIcon} tone="ink" /><StatCard label="Live coverage" value={`${coverage}%`} detail={`${operational} of ${total} operational`} icon={Gauge} tone="teal" /><StatCard label="Needs attention" value={String(attention).padStart(2, '0')} detail="partial or unsupported" icon={AlertTriangle} tone="amber" /><StatCard label="Calls this week" value={calls.toLocaleString()} detail="from the command registry" icon={Activity} tone="teal" /></div>
+     <div className="grid gap-5 xl:grid-cols-[1.18fr_.82fr]"><PlatformCoverage commandList={commandList} /><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-1 flex items-start justify-between"><div><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Signal feed</div><h2 className="mt-1 text-[16px] font-extrabold tracking-[-.03em]">Recent activity</h2></div><Link href="/activity" className="text-muted-foreground hover:text-foreground" aria-label="View all activity" data-testid="link-view-all-activity"><ArrowUpRight size={16} /></Link></div><ActivityList compact /></section></div>
+     <Inventory compact commandList={commandList} onSelect={(id) => navigate(`/commands/${id}`)} />
   </div></PageFrame>;
 }
 
-function CommandsPage() {
+function CommandsPage({ commandList, onCreateCommand }: { commandList: Command[]; onCreateCommand: (input: NewCommandInput) => void }) {
   const params = useParams<{ id?: string }>();
   const [, navigate] = useLocation();
-  const selected = commands.find((command) => command.id === params.id);
-  return <PageFrame title="Commands" eyebrow="Command control / Registry"><div className="mx-auto max-w-[1240px]"><div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Registry / {commands.length} definitions</p><p className="mt-2 max-w-xl text-[12px] leading-relaxed text-muted-foreground">Inspect every capability, see where it is live, and spot the gaps before your operators do.</p></div><button className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#203346] px-3 text-[11px] font-bold text-[#C5F1EB] hover:bg-[#29465D] dark:bg-[#65D9CE] dark:text-[#172E3A]" onClick={() => alert('New command creation is available in the connected workspace.')} data-testid="button-new-command"><Sparkles size={14} /> New command</button></div><Inventory onSelect={(id) => navigate(`/commands/${id}`)} />{selected && <CommandDetail command={selected} onClose={() => navigate('/commands')} />}</div></PageFrame>;
+  const [composerOpen, setComposerOpen] = useState(false);
+  const selected = commandList.find((command) => command.id === params.id);
+  return <PageFrame title="Commands" eyebrow="Command control / Registry" commandCount={commandList.length}><div className="mx-auto max-w-[1240px]"><div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Registry / {commandList.length} definitions</p><p className="mt-2 max-w-xl text-[12px] leading-relaxed text-muted-foreground">Inspect every capability, see where it is live, and spot the gaps before your operators do.</p></div><button className="flex h-9 items-center justify-center gap-2 rounded-lg bg-[#203346] px-3 text-[11px] font-bold text-[#C5F1EB] hover:bg-[#29465D] dark:bg-[#65D9CE] dark:text-[#172E3A]" onClick={() => setComposerOpen(true)} data-testid="button-new-command"><Sparkles size={14} /> New command</button></div><Inventory commandList={commandList} onSelect={(id) => navigate(`/commands/${id}`)} />{selected && <CommandDetail command={selected} onClose={() => navigate('/commands')} />}<CommandComposer open={composerOpen} onClose={() => setComposerOpen(false)} onCreate={onCreateCommand} /></div></PageFrame>;
 }
 
-function ChannelsPage() {
-  return <PageFrame title="Channels" eyebrow="Command control / Coverage"><div className="mx-auto max-w-[1240px] space-y-5"><div className="fade-up mb-7"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Coverage matrix</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Three surfaces, one view.</h2><p className="mt-1 max-w-xl text-[12px] text-muted-foreground">Capability parity is a moving target. This is the honest version of what Gioxbot can do today.</p></div><div className="grid gap-4 md:grid-cols-3">{platforms.map((platform) => <div className="panel-shadow rounded-2xl border border-border bg-card p-5 transition-transform hover:-translate-y-0.5" key={platform.id} data-testid={`channel-card-${platform.id}`}><div className="flex items-start justify-between"><PlatformMark id={platform.id} size="lg" /><span className={cx('rounded-full px-2 py-1 font-mono text-[9px] uppercase tracking-wider', platform.status === 'connected' ? 'bg-[#E1F5F1] text-[#14766F] dark:bg-[#17443F] dark:text-[#7CE0D6]' : 'bg-[#FFF1D7] text-[#986119] dark:bg-[#4B361A] dark:text-[#F4C875]')}>{platform.status === 'connected' ? 'Connected' : 'Attention'}</span></div><h3 className="mt-5 text-[16px] font-extrabold">{platform.name}</h3><p className="mt-1 text-[11px] text-muted-foreground">{platform.description}</p><div className="mt-6 border-t border-border pt-4"><div className="mb-2 flex justify-between"><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Coverage</span><span className="font-mono text-[10px] font-medium">{platform.commandCount} / {commands.length}</span></div><div className="h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full" style={{ width: `${(platform.commandCount / commands.length) * 100}%`, backgroundColor: platform.accent }} /></div></div><Link href="/commands" className="mt-5 flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" data-testid={`link-inspect-${platform.id}`}>Inspect commands <ChevronRight size={13} /></Link></div>)}</div><section className="panel-shadow overflow-hidden rounded-2xl border border-border bg-card"><div className="border-b border-border p-5"><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Parity matrix</div><h2 className="mt-1 text-[16px] font-extrabold">Command availability by platform</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[670px] text-left"><thead className="bg-secondary/55 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Command</th><th className="px-4 py-3 font-medium">Category</th>{platforms.map((platform) => <th className="px-4 py-3 font-medium" key={platform.id}>{platform.shortLabel}</th>)}</tr></thead><tbody>{commands.map((command) => <tr className="border-t border-border transition-colors hover:bg-secondary/35" key={command.id}><td className="px-5 py-3 font-mono text-[11px] font-medium">{command.name}</td><td className="px-4 py-3 text-[10px] text-muted-foreground">{command.category}</td>{platforms.map((platform) => <td className="px-4 py-3" key={platform.id}><StatusPill status={command.platforms[platform.id]} compact /></td>)}</tr>)}</tbody></table></div></section></div></PageFrame>;
+function ChannelsPage({ commandList }: { commandList: Command[] }) {
+  return <PageFrame title="Channels" eyebrow="Command control / Coverage" commandCount={commandList.length}><div className="mx-auto max-w-[1240px] space-y-5"><div className="fade-up mb-7"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Coverage matrix</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Three surfaces, one view.</h2><p className="mt-1 max-w-xl text-[12px] text-muted-foreground">Capability parity is a moving target. This is the honest version of what Gioxbot can do today.</p></div><div className="grid gap-4 md:grid-cols-3">{platforms.map((platform) => { const supported = commandList.filter((command) => command.platforms[platform.id] !== 'unsupported').length; const coverage = commandList.length ? Math.round((supported / commandList.length) * 100) : 0; return <div className="panel-shadow rounded-2xl border border-border bg-card p-5 transition-transform hover:-translate-y-0.5" key={platform.id} data-testid={`channel-card-${platform.id}`}><div className="flex items-start justify-between"><PlatformMark id={platform.id} size="lg" /><span className={cx('rounded-full px-2 py-1 font-mono text-[9px] uppercase tracking-wider', platform.status === 'connected' ? 'bg-[#E1F5F1] text-[#14766F] dark:bg-[#17443F] dark:text-[#7CE0D6]' : 'bg-[#FFF1D7] text-[#986119] dark:bg-[#4B361A] dark:text-[#F4C875]')}>{platform.status === 'connected' ? 'Connected' : 'Attention'}</span></div><h3 className="mt-5 text-[16px] font-extrabold">{platform.name}</h3><p className="mt-1 text-[11px] text-muted-foreground">{platform.description}</p><div className="mt-6 border-t border-border pt-4"><div className="mb-2 flex justify-between"><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Coverage</span><span className="font-mono text-[10px] font-medium">{supported} / {commandList.length}</span></div><div className="h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full" style={{ width: `${coverage}%`, backgroundColor: platform.accent }} /></div></div><Link href="/commands" className="mt-5 flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" data-testid={`link-inspect-${platform.id}`}>Inspect commands <ChevronRight size={13} /></Link></div>; })}</div><section className="panel-shadow overflow-hidden rounded-2xl border border-border bg-card"><div className="border-b border-border p-5"><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Parity matrix</div><h2 className="mt-1 text-[16px] font-extrabold">Command availability by platform</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[670px] text-left"><thead className="bg-secondary/55 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Command</th><th className="px-4 py-3 font-medium">Category</th>{platforms.map((platform) => <th className="px-4 py-3 font-medium" key={platform.id}>{platform.shortLabel}</th>)}</tr></thead><tbody>{commandList.map((command) => <tr className="border-t border-border transition-colors hover:bg-secondary/35" key={command.id}><td className="px-5 py-3 font-mono text-[11px] font-medium">{command.name}</td><td className="px-4 py-3 text-[10px] text-muted-foreground">{command.category}</td>{platforms.map((platform) => <td className="px-4 py-3" key={platform.id}><StatusPill status={command.platforms[platform.id]} compact /></td>)}</tr>)}</tbody></table></div></section></div></PageFrame>;
 }
 
 function ActivityPage() {
@@ -257,27 +345,59 @@ function ActivityPage() {
   return <PageFrame title="Activity" eyebrow="Command control / Signal feed"><div className="mx-auto max-w-[920px]"><div className="fade-up mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Operational timeline</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">What changed recently.</h2></div><div className="flex gap-1.5 rounded-xl border border-border bg-card p-1">{(['all', 'deploy', 'warning'] as const).map((item) => <button onClick={() => setFilter(item)} className={cx('rounded-lg px-3 py-2 font-mono text-[9px] uppercase tracking-wider transition-colors', filter === item ? 'bg-[#203346] text-[#C5F1EB] dark:bg-[#65D9CE] dark:text-[#172E3A]' : 'text-muted-foreground hover:text-foreground')} key={item} data-testid={`filter-activity-${item}`}>{item === 'all' ? 'Everything' : item}</button>)}</div></div><section className="panel-shadow rounded-2xl border border-border bg-card px-5 md:px-7"><div className="border-b border-border py-5"><span className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">{shown.length} events · last 30 days</span></div>{shown.length ? <ActivityList /> : <div className="py-16 text-center"><CircleHelp className="mx-auto mb-3 text-muted-foreground" size={22} /><p className="text-[13px] font-bold">No matching events</p></div>}</section></div></PageFrame>;
 }
 
-function SettingsPage() {
+ function SettingsPage({ modules, onToggleModule }: { modules: BotModule[]; onToggleModule: (id: string) => void }) {
   const [saved, setSaved] = useState(false);
   const [compact, setCompact] = useState(false);
-  return <PageFrame title="Settings" eyebrow="Command control / Workspace"><div className="mx-auto max-w-[920px]"><div className="fade-up mb-7"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Workspace preferences</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Keep the desk yours.</h2><p className="mt-1 text-[12px] text-muted-foreground">Small choices that shape how operators read and maintain the command surface.</p></div><div className="space-y-5"><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-5"><h3 className="text-[14px] font-extrabold">Workspace identity</h3><p className="mt-1 text-[11px] text-muted-foreground">The name operators see in the command desk.</p></div><label className="block text-[11px] font-bold">Workspace name<input defaultValue="Gioxbot Operations" className="mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 text-[12px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" data-testid="input-workspace-name" /></label></section><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-5"><h3 className="text-[14px] font-extrabold">Connected channels</h3><p className="mt-1 text-[11px] text-muted-foreground">Presentation only for this local workspace. Connection state is seeded.</p></div><div className="space-y-2">{platforms.map((platform) => <div className="flex items-center gap-3 rounded-xl border border-border p-3" key={platform.id}><PlatformMark id={platform.id} /><div className="flex-1"><div className="text-[11px] font-bold">{platform.name}</div><div className="mt-0.5 font-mono text-[9px] text-muted-foreground">{platform.description}</div></div><span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-[#167F77] dark:text-[#7CE0D6]"><span className="size-1.5 rounded-full bg-current" />{platform.status}</span><button className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Open ${platform.name} settings`} data-testid={`button-channel-settings-${platform.id}`}><SlidersHorizontal size={14} /></button></div>)}</div></section><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-5"><h3 className="text-[14px] font-extrabold">Desk behavior</h3><p className="mt-1 text-[11px] text-muted-foreground">Tune the density of your daily command view.</p></div><div className="flex items-center justify-between gap-4"><div><div className="text-[11px] font-bold">Compact inventory rows</div><div className="mt-1 text-[10px] text-muted-foreground">Show more commands without scrolling.</div></div><button onClick={() => setCompact(!compact)} className={cx('relative h-6 w-11 rounded-full transition-colors', compact ? 'bg-primary' : 'bg-secondary')} aria-label="Toggle compact inventory rows" data-testid="switch-compact-rows"><span className={cx('absolute top-1 size-4 rounded-full bg-card shadow-sm transition-transform', compact ? 'translate-x-6' : 'translate-x-1')} /></button></div></section><div className="flex items-center justify-end gap-3"><span className={cx('font-mono text-[10px] text-primary transition-opacity', saved ? 'opacity-100' : 'opacity-0')}>Preferences saved</span><button onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2200); }} className="rounded-lg bg-[#203346] px-4 py-2.5 text-[11px] font-bold text-[#C5F1EB] hover:bg-[#29465D] dark:bg-[#65D9CE] dark:text-[#172E3A]" data-testid="button-save-settings"><Check size={14} className="mr-1.5 inline" /> Save preferences</button></div></div></div></PageFrame>;
+  return <PageFrame title="Settings" eyebrow="Command control / Workspace"><div className="mx-auto max-w-[920px]"><div className="fade-up mb-7"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Workspace preferences</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Keep the desk yours.</h2><p className="mt-1 text-[12px] text-muted-foreground">Small choices that shape how operators read and maintain the command surface.</p></div><div className="space-y-5"><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-5"><h3 className="text-[14px] font-extrabold">Workspace identity</h3><p className="mt-1 text-[11px] text-muted-foreground">The name operators see in the command desk.</p></div><label className="block text-[11px] font-bold">Workspace name<input defaultValue="Gioxbot Operations" className="mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 text-[12px] outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" data-testid="input-workspace-name" /></label></section><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-5"><h3 className="text-[14px] font-extrabold">Connected channels</h3><p className="mt-1 text-[11px] text-muted-foreground">Facebook Page connection is pending; Messenger delivery activates after connection.</p></div><div className="space-y-2">{platforms.map((platform) => <div className="flex items-center gap-3 rounded-xl border border-border p-3" key={platform.id}><PlatformMark id={platform.id} /><div className="flex-1"><div className="text-[11px] font-bold">{platform.name}</div><div className="mt-0.5 font-mono text-[9px] text-muted-foreground">{platform.description}</div></div><span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-[#167F77] dark:text-[#7CE0D6]"><span className="size-1.5 rounded-full bg-current" />{platform.status}</span><button className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Open ${platform.name} settings`} data-testid={`button-channel-settings-${platform.id}`}><SlidersHorizontal size={14} /></button></div>)}</div></section><OptionalBotsPanel modules={modules} onToggle={onToggleModule} /><section className="panel-shadow rounded-2xl border border-border bg-card p-5 md:p-6"><div className="mb-5"><h3 className="text-[14px] font-extrabold">Desk behavior</h3><p className="mt-1 text-[11px] text-muted-foreground">Tune the density of your daily command view.</p></div><div className="flex items-center justify-between gap-4"><div><div className="text-[11px] font-bold">Compact inventory rows</div><div className="mt-1 text-[10px] text-muted-foreground">Show more commands without scrolling.</div></div><button onClick={() => setCompact(!compact)} className={cx('relative h-6 w-11 rounded-full transition-colors', compact ? 'bg-primary' : 'bg-secondary')} aria-label="Toggle compact inventory rows" data-testid="switch-compact-rows"><span className={cx('absolute top-1 size-4 rounded-full bg-card shadow-sm transition-transform', compact ? 'translate-x-6' : 'translate-x-1')} /></button></div></section><div className="flex items-center justify-end gap-3"><span className={cx('font-mono text-[10px] text-primary transition-opacity', saved ? 'opacity-100' : 'opacity-0')}>Preferences saved</span><button onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2200); }} className="rounded-lg bg-[#203346] px-4 py-2.5 text-[11px] font-bold text-[#C5F1EB] hover:bg-[#29465D] dark:bg-[#65D9CE] dark:text-[#172E3A]" data-testid="button-save-settings"><Check size={14} className="mr-1.5 inline" /> Save preferences</button></div></div></div></PageFrame>;
 }
 
-function PageFrame({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
+function PageFrame({ title, eyebrow, children, commandCount = commands.length }: { title: string; eyebrow: string; children: ReactNode; commandCount?: number }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  return <div className="noise flex min-h-[100dvh] bg-background"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><div className="flex min-w-0 flex-1 flex-col"><Header title={title} eyebrow={eyebrow} onMenu={() => setSidebarOpen(true)} /><main className="shell-grid flex-1 px-5 py-7 md:px-9 md:py-9">{children}</main></div></div>;
+  return <div className="noise flex min-h-[100dvh] bg-background"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} commandCount={commandCount} /><div className="flex min-w-0 flex-1 flex-col"><Header title={title} eyebrow={eyebrow} onMenu={() => setSidebarOpen(true)} /><main className="shell-grid flex-1 px-5 py-7 md:px-9 md:py-9">{children}</main></div></div>;
 }
 
 function NotFoundPage() {
   return <PageFrame title="Not found" eyebrow="Command control / 404"><div className="flex min-h-[60vh] items-center justify-center"><div className="text-center"><div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground"><CircleHelp size={24} /></div><h2 className="text-2xl font-extrabold">That surface does not exist.</h2><p className="mt-2 text-sm text-muted-foreground">Return to the overview to pick up where you left off.</p><Link href="/" className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#203346] px-4 py-2.5 text-[11px] font-bold text-[#C5F1EB] dark:bg-[#65D9CE] dark:text-[#172E3A]" data-testid="link-return-overview">Return to overview <ArrowUpRight size={14} /></Link></div></div></PageFrame>;
 }
 
-function Router() {
-  return <Switch><Route path="/" component={OverviewPage} /><Route path="/commands/:id" component={CommandsPage} /><Route path="/commands" component={CommandsPage} /><Route path="/channels" component={ChannelsPage} /><Route path="/activity" component={ActivityPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFoundPage} /></Switch>;
+function Router({ commandList, onCreateCommand, modules, onToggleModule }: { commandList: Command[]; onCreateCommand: (input: NewCommandInput) => void; modules: BotModule[]; onToggleModule: (id: string) => void }) {
+  return <Switch><Route path="/" component={() => <OverviewPage commandList={commandList} />} /><Route path="/commands/:id" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/commands" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/channels" component={() => <ChannelsPage commandList={commandList} />} /><Route path="/activity" component={ActivityPage} /><Route path="/settings" component={() => <SettingsPage modules={modules} onToggleModule={onToggleModule} />} /><Route component={NotFoundPage} /></Switch>;
 }
 
 function App() {
-  return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter>;
+  const [commandList, setCommandList] = useLocalStorageState<Command[]>('gioxbot-commands', commands);
+  const [modules, setModules] = useLocalStorageState<BotModule[]>('gioxbot-bot-modules', optionalBots);
+
+  const createCommand = (input: NewCommandInput) => {
+    const commandName = input.name.trim().startsWith('/') ? input.name.trim() : `/${input.name.trim()}`;
+    const slug = commandName.slice(1).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || 'new-command';
+    const supportedPlatforms = new Set(input.targetPlatforms);
+    const newCommand: Command = {
+      id: `${slug}-${Date.now()}`,
+      name: commandName,
+      description: input.description.trim(),
+      category: input.category,
+      platforms: {
+        telegram: supportedPlatforms.has('telegram') ? 'operational' : 'unsupported',
+        facebook: supportedPlatforms.has('facebook') ? 'operational' : 'unsupported',
+        discord: supportedPlatforms.has('discord') ? 'operational' : 'unsupported',
+      },
+      status: input.targetPlatforms.length === platforms.length ? 'operational' : 'partial',
+      usage: 0,
+      updatedAt: 'Just now',
+      risk: 'low',
+      syntax: input.syntax.trim() || commandName,
+      permissions: ['Read messages'],
+      responseExample: `${commandName} is ready on ${input.targetPlatforms.map((platform) => platforms.find((item) => item.id === platform)?.shortLabel).join(', ')}.`,
+    };
+    setCommandList((current) => [newCommand, ...current]);
+  };
+
+  const toggleModule = (id: string) => {
+    setModules((current) => current.map((module) => module.id === id ? { ...module, enabled: !module.enabled } : module));
+  };
+
+  return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router commandList={commandList} onCreateCommand={createCommand} modules={modules} onToggleModule={toggleModule} /></WouterRouter>;
 }
 
 export default App;

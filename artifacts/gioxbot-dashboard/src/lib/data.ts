@@ -36,10 +36,69 @@ export type ActivityEvent = {
   type: 'deploy' | 'edit' | 'warning' | 'connect';
 };
 
+export type BotModule = {
+  id: string;
+  name: string;
+  platform: PlatformId;
+  description: string;
+  summary: string;
+  commandCount: number;
+  status: 'available' | 'needs-connection';
+  enabled: boolean;
+  capabilities: string[];
+};
+
 export const platforms: Platform[] = [
   { id: 'telegram', name: 'Telegram', shortLabel: 'TG', description: 'Bot API · @gioxbot_ops', status: 'connected', commandCount: 14, accent: '#27B8B1' },
   { id: 'facebook', name: 'Facebook Page', shortLabel: 'FB', description: 'Page messaging · Gioxbot HQ', status: 'attention', commandCount: 9, accent: '#5976D9' },
   { id: 'discord', name: 'Discord', shortLabel: 'DS', description: 'Gateway · Gioxbot Command', status: 'connected', commandCount: 11, accent: '#8C78E8' },
+];
+
+export const optionalBots: BotModule[] = [
+  {
+    id: 'messenger-replies',
+    name: 'Messenger Replies',
+    platform: 'facebook',
+    description: 'Let Gioxbot answer Page messages with your approved command set.',
+    summary: 'A Messenger bot for Facebook Page conversations.',
+    commandCount: 4,
+    status: 'needs-connection',
+    enabled: false,
+    capabilities: ['Keyword replies', 'FAQ handoff', 'Human escalation'],
+  },
+  {
+    id: 'welcome-flow',
+    name: 'Welcome Flow',
+    platform: 'telegram',
+    description: 'Send a warm first-message flow when someone joins your Telegram space.',
+    summary: 'A guided welcome sequence for new members.',
+    commandCount: 3,
+    status: 'available',
+    enabled: false,
+    capabilities: ['Welcome message', 'Rules prompt', 'Role handoff'],
+  },
+  {
+    id: 'mod-pack',
+    name: 'Moderation Pack',
+    platform: 'discord',
+    description: 'Bundle the everyday moderation commands your operators use most.',
+    summary: 'A ready-to-apply moderation toolkit for Discord.',
+    commandCount: 5,
+    status: 'available',
+    enabled: false,
+    capabilities: ['Auto slowmode', 'Link filtering', 'Incident logging'],
+  },
+  {
+    id: 'broadcast-bridge',
+    name: 'Broadcast Bridge',
+    platform: 'facebook',
+    description: 'Prepare one announcement and format it for every connected channel.',
+    summary: 'A cross-channel publishing helper for operators.',
+    commandCount: 2,
+    status: 'needs-connection',
+    enabled: false,
+    capabilities: ['Message preview', 'Approval gate', 'Delivery report'],
+  },
 ];
 
 export const commands: Command[] = [
