@@ -1,12 +1,5 @@
 {
   "framework": "vite",
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @workspace/gioxbot-dashboard run build",
-  "outputDirectory": "artifacts/gioxbot-dashboard/dist/public",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "buildCommand": "vite build",
+  "outputDirectory": "dist"
 }
