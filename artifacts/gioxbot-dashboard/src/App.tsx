@@ -7,6 +7,8 @@ import {
   Shield, SlidersHorizontal, Sparkles, Terminal, UserRound, Wifi, X, Zap,
 } from 'lucide-react';
 import { activityEvents, commands, optionalBots, platforms, type ActivityEvent, type BotModule, type Command, type CommandCategory, type CommandStatus, type PlatformId } from '@/lib/data';
+import { initialMessengerBotRules, initialMessengerConversations, type MessengerBotRule, type MessengerConversation } from '@/lib/messenger-data';
+import MessengerWorkspace from '@/components/MessengerWorkspace';
 import '@/index.css';
 
 const platformIcons: Record<PlatformId, typeof MessageCircle> = {
@@ -93,6 +95,7 @@ function Sidebar({ open, onClose, commandCount }: { open: boolean; onClose: () =
   const links = [
     { href: '/', label: 'Overview', icon: LayoutDashboard },
     { href: '/commands', label: 'Commands', icon: CommandIcon, count: commandCount },
+    { href: '/messenger', label: 'Messenger', icon: MessageCircle },
     { href: '/channels', label: 'Channels', icon: Wifi },
     { href: '/activity', label: 'Activity', icon: Activity },
   ];
@@ -339,6 +342,10 @@ function ChannelsPage({ commandList }: { commandList: Command[] }) {
   return <PageFrame title="Channels" eyebrow="Command control / Coverage" commandCount={commandList.length}><div className="mx-auto max-w-[1240px] space-y-5"><div className="fade-up mb-7"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Coverage matrix</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Three surfaces, one view.</h2><p className="mt-1 max-w-xl text-[12px] text-muted-foreground">Capability parity is a moving target. This is the honest version of what Gioxbot can do today.</p></div><div className="grid gap-4 md:grid-cols-3">{platforms.map((platform) => { const supported = commandList.filter((command) => command.platforms[platform.id] !== 'unsupported').length; const coverage = commandList.length ? Math.round((supported / commandList.length) * 100) : 0; return <div className="panel-shadow rounded-2xl border border-border bg-card p-5 transition-transform hover:-translate-y-0.5" key={platform.id} data-testid={`channel-card-${platform.id}`}><div className="flex items-start justify-between"><PlatformMark id={platform.id} size="lg" /><span className={cx('rounded-full px-2 py-1 font-mono text-[9px] uppercase tracking-wider', platform.status === 'connected' ? 'bg-[#E1F5F1] text-[#14766F] dark:bg-[#17443F] dark:text-[#7CE0D6]' : 'bg-[#FFF1D7] text-[#986119] dark:bg-[#4B361A] dark:text-[#F4C875]')}>{platform.status === 'connected' ? 'Connected' : 'Attention'}</span></div><h3 className="mt-5 text-[16px] font-extrabold">{platform.name}</h3><p className="mt-1 text-[11px] text-muted-foreground">{platform.description}</p><div className="mt-6 border-t border-border pt-4"><div className="mb-2 flex justify-between"><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Coverage</span><span className="font-mono text-[10px] font-medium">{supported} / {commandList.length}</span></div><div className="h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full" style={{ width: `${coverage}%`, backgroundColor: platform.accent }} /></div></div><Link href="/commands" className="mt-5 flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" data-testid={`link-inspect-${platform.id}`}>Inspect commands <ChevronRight size={13} /></Link></div>; })}</div><section className="panel-shadow overflow-hidden rounded-2xl border border-border bg-card"><div className="border-b border-border p-5"><div className="font-mono text-[10px] uppercase tracking-[.14em] text-muted-foreground">Parity matrix</div><h2 className="mt-1 text-[16px] font-extrabold">Command availability by platform</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[670px] text-left"><thead className="bg-secondary/55 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Command</th><th className="px-4 py-3 font-medium">Category</th>{platforms.map((platform) => <th className="px-4 py-3 font-medium" key={platform.id}>{platform.shortLabel}</th>)}</tr></thead><tbody>{commandList.map((command) => <tr className="border-t border-border transition-colors hover:bg-secondary/35" key={command.id}><td className="px-5 py-3 font-mono text-[11px] font-medium">{command.name}</td><td className="px-4 py-3 text-[10px] text-muted-foreground">{command.category}</td>{platforms.map((platform) => <td className="px-4 py-3" key={platform.id}><StatusPill status={command.platforms[platform.id]} compact /></td>)}</tr>)}</tbody></table></div></section></div></PageFrame>;
 }
 
+function MessengerPage({ conversations, rules, botEnabled, onConversationsChange, onRulesChange, onBotEnabledChange }: { conversations: MessengerConversation[]; rules: MessengerBotRule[]; botEnabled: boolean; onConversationsChange: (next: MessengerConversation[]) => void; onRulesChange: (next: MessengerBotRule[]) => void; onBotEnabledChange: (next: boolean) => void }) {
+  return <PageFrame title="Messenger" eyebrow="Command control / Bot builder"><div className="mx-auto max-w-[1500px]"><div className="fade-up mb-6"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Bot builder / Facebook Page preview</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Build, test, and tune your Messenger bot.</h2><p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">Use simulated customer messages to test keyword replies before connecting a live Facebook Page.</p></div><MessengerWorkspace initialConversations={conversations} initialRules={rules} initialBotEnabled={botEnabled} onConversationsChange={onConversationsChange} onRulesChange={onRulesChange} onBotEnabledChange={onBotEnabledChange} /></div></PageFrame>;
+}
+
 function ActivityPage() {
   const [filter, setFilter] = useState<'all' | 'warning' | 'deploy'>('all');
   const shown = filter === 'all' ? activityEvents : activityEvents.filter((event) => event.type === filter);
@@ -360,13 +367,16 @@ function NotFoundPage() {
   return <PageFrame title="Not found" eyebrow="Command control / 404"><div className="flex min-h-[60vh] items-center justify-center"><div className="text-center"><div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground"><CircleHelp size={24} /></div><h2 className="text-2xl font-extrabold">That surface does not exist.</h2><p className="mt-2 text-sm text-muted-foreground">Return to the overview to pick up where you left off.</p><Link href="/" className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#203346] px-4 py-2.5 text-[11px] font-bold text-[#C5F1EB] dark:bg-[#65D9CE] dark:text-[#172E3A]" data-testid="link-return-overview">Return to overview <ArrowUpRight size={14} /></Link></div></div></PageFrame>;
 }
 
-function Router({ commandList, onCreateCommand, modules, onToggleModule }: { commandList: Command[]; onCreateCommand: (input: NewCommandInput) => void; modules: BotModule[]; onToggleModule: (id: string) => void }) {
-  return <Switch><Route path="/" component={() => <OverviewPage commandList={commandList} />} /><Route path="/commands/:id" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/commands" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/channels" component={() => <ChannelsPage commandList={commandList} />} /><Route path="/activity" component={ActivityPage} /><Route path="/settings" component={() => <SettingsPage modules={modules} onToggleModule={onToggleModule} />} /><Route component={NotFoundPage} /></Switch>;
+function Router({ commandList, onCreateCommand, modules, onToggleModule, messengerConversations, messengerRules, messengerBotEnabled, onMessengerConversationsChange, onMessengerRulesChange, onMessengerBotEnabledChange }: { commandList: Command[]; onCreateCommand: (input: NewCommandInput) => void; modules: BotModule[]; onToggleModule: (id: string) => void; messengerConversations: MessengerConversation[]; messengerRules: MessengerBotRule[]; messengerBotEnabled: boolean; onMessengerConversationsChange: (next: MessengerConversation[]) => void; onMessengerRulesChange: (next: MessengerBotRule[]) => void; onMessengerBotEnabledChange: (next: boolean) => void }) {
+  return <Switch><Route path="/" component={() => <OverviewPage commandList={commandList} />} /><Route path="/commands/:id" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/commands" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/messenger" component={() => <MessengerPage conversations={messengerConversations} rules={messengerRules} botEnabled={messengerBotEnabled} onConversationsChange={onMessengerConversationsChange} onRulesChange={onMessengerRulesChange} onBotEnabledChange={onMessengerBotEnabledChange} />} /><Route path="/channels" component={() => <ChannelsPage commandList={commandList} />} /><Route path="/activity" component={ActivityPage} /><Route path="/settings" component={() => <SettingsPage modules={modules} onToggleModule={onToggleModule} />} /><Route component={NotFoundPage} /></Switch>;
 }
 
 function App() {
   const [commandList, setCommandList] = useLocalStorageState<Command[]>('gioxbot-commands', commands);
   const [modules, setModules] = useLocalStorageState<BotModule[]>('gioxbot-bot-modules', optionalBots);
+  const [messengerConversations, setMessengerConversations] = useLocalStorageState<MessengerConversation[]>('gioxbot-messenger-conversations', initialMessengerConversations);
+  const [messengerRules, setMessengerRules] = useLocalStorageState<MessengerBotRule[]>('gioxbot-messenger-rules', initialMessengerBotRules);
+  const [messengerBotEnabled, setMessengerBotEnabled] = useLocalStorageState<boolean>('gioxbot-messenger-bot-enabled', false);
 
   const createCommand = (input: NewCommandInput) => {
     const commandName = input.name.trim().startsWith('/') ? input.name.trim() : `/${input.name.trim()}`;
@@ -397,7 +407,7 @@ function App() {
     setModules((current) => current.map((module) => module.id === id ? { ...module, enabled: !module.enabled } : module));
   };
 
-  return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router commandList={commandList} onCreateCommand={createCommand} modules={modules} onToggleModule={toggleModule} /></WouterRouter>;
+  return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router commandList={commandList} onCreateCommand={createCommand} modules={modules} onToggleModule={toggleModule} messengerConversations={messengerConversations} messengerRules={messengerRules} messengerBotEnabled={messengerBotEnabled} onMessengerConversationsChange={setMessengerConversations} onMessengerRulesChange={setMessengerRules} onMessengerBotEnabledChange={setMessengerBotEnabled} /></WouterRouter>;
 }
 
 export default App;
