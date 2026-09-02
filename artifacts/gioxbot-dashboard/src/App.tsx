@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { Route, Switch, Link, useLocation, useParams, Router as WouterRouter } from 'wouter';
 import {
   Activity, AlertTriangle, ArrowUpRight, Bell, Bot, Check, ChevronRight, CircleHelp,
-  Command as CommandIcon, Copy, Gauge, Hash, LayoutDashboard, Menu, MessageCircle,
+  ChevronDown, Command as CommandIcon, Copy, Gauge, Hash, LayoutDashboard, Menu, MessageCircle,
   MoreHorizontal, Search, Settings,
   Shield, SlidersHorizontal, Sparkles, Terminal, UserRound, Wifi, X, Zap,
 } from 'lucide-react';
@@ -96,6 +96,7 @@ function Sidebar({ open, onClose, commandCount }: { open: boolean; onClose: () =
     { href: '/', label: 'Overview', icon: LayoutDashboard },
     { href: '/commands', label: 'Commands', icon: CommandIcon, count: commandCount },
     { href: '/messenger', label: 'Messenger', icon: MessageCircle },
+    { href: '/create-bot', label: 'Build bot', icon: Bot },
     { href: '/channels', label: 'Channels', icon: Wifi },
     { href: '/activity', label: 'Activity', icon: Activity },
   ];
@@ -343,7 +344,32 @@ function ChannelsPage({ commandList }: { commandList: Command[] }) {
 }
 
 function MessengerPage({ conversations, rules, botEnabled, onConversationsChange, onRulesChange, onBotEnabledChange }: { conversations: MessengerConversation[]; rules: MessengerBotRule[]; botEnabled: boolean; onConversationsChange: (next: MessengerConversation[]) => void; onRulesChange: (next: MessengerBotRule[]) => void; onBotEnabledChange: (next: boolean) => void }) {
-  return <PageFrame title="Messenger" eyebrow="Command control / Bot builder"><div className="mx-auto max-w-[1500px]"><div className="fade-up mb-6"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Bot builder / Facebook Page preview</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Build, test, and tune your Messenger bot.</h2><p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">Use simulated customer messages to test keyword replies before connecting a live Facebook Page.</p></div><MessengerWorkspace initialConversations={conversations} initialRules={rules} initialBotEnabled={botEnabled} onConversationsChange={onConversationsChange} onRulesChange={onRulesChange} onBotEnabledChange={onBotEnabledChange} /></div></PageFrame>;
+  return <PageFrame title="Messenger" eyebrow="Command control / Bot builder"><div className="mx-auto max-w-[1500px]"><div className="fade-up mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.16em] text-primary">Bot builder / Facebook Page preview</p><h2 className="mt-2 text-[27px] font-extrabold tracking-[-.06em]">Build, test, and tune your Messenger bot.</h2><p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">Use simulated customer messages to test keyword replies before connecting a live Facebook Page.</p></div><Link href="/create-bot" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#203346] px-3.5 text-[11px] font-bold text-[#C5F1EB] transition-transform hover:-translate-y-0.5 hover:bg-[#29465D] dark:bg-[#65D9CE] dark:text-[#172E3A]" data-testid="link-create-bot"><Bot size={15} /> Create new bot</Link></div><MessengerWorkspace initialConversations={conversations} initialRules={rules} initialBotEnabled={botEnabled} onConversationsChange={onConversationsChange} onRulesChange={onRulesChange} onBotEnabledChange={onBotEnabledChange} /></div></PageFrame>;
+}
+
+type BotPlatform = 'discord' | 'telegram' | 'facebook-page' | 'facebook-messenger';
+
+const botPlatformOptions: Array<{ id: BotPlatform; label: string; detail: string; accent: string }> = [
+  { id: 'discord', label: 'Discord', detail: 'Gateway bot', accent: '#8C78E8' },
+  { id: 'telegram', label: 'Telegram', detail: 'Bot API', accent: '#27B8B1' },
+  { id: 'facebook-page', label: 'Facebook Page', detail: 'Page messaging', accent: '#5976D9' },
+  { id: 'facebook-messenger', label: 'Facebook Messenger', detail: 'Messenger bot', accent: '#5976D9' },
+];
+
+function CreateBotPage() {
+  const [, navigate] = useLocation();
+  const [selectedPlatform, setSelectedPlatform] = useState<BotPlatform | ''>('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const selected = botPlatformOptions.find((platform) => platform.id === selectedPlatform);
+
+  const selectPlatform = (id: BotPlatform) => {
+    setSelectedPlatform(id);
+    setVerified(false);
+    setDropdownOpen(false);
+  };
+
+  return <PageFrame title="Create bot" eyebrow="Command control / Bot builder"><div className="mx-auto max-w-[980px]"><div className="bot-setup-surface -mx-5 min-h-[calc(100dvh-132px)] px-5 py-7 md:-mx-9 md:px-9 md:py-12"><div className="mx-auto max-w-[720px]"><div className="fade-up mb-8"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-[#3F6BAA]">Bot builder / Setup</p><h2 className="mt-2 text-[30px] font-extrabold tracking-[-.06em] text-[#101827] md:text-[36px]">Create New Bot</h2><p className="mt-2 max-w-xl text-[14px] leading-relaxed text-[#3E4C60]">Set up your bot in three steps. Each field is verified before you proceed.</p></div><section className="rounded-[22px] border border-[#C9D3DE] bg-white p-5 shadow-[0_12px_30px_rgba(40,56,73,.12)] md:p-8" data-testid="create-bot-flow"><div className="flex items-center gap-3 md:gap-5"><div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#4674C8] text-white shadow-[0_0_0_4px_#E5EDF9]"><Check size={21} strokeWidth={3} /></div><div className="h-1 flex-1 rounded-full bg-[#9BBBEA]" /><div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#4674C8] font-mono text-[14px] font-bold text-white shadow-[0_0_0_4px_#E5EDF9]">2</div><div className="h-1 flex-1 rounded-full bg-[#D7DADD]" /><div className="flex size-11 shrink-0 items-center justify-center rounded-full border-2 border-[#E3E5E8] font-mono text-[14px] text-[#A8ADB5]">3</div></div><div className="mt-4 grid grid-cols-3 items-center text-center text-[12px] text-[#7F8792]"><span>Step 1 of 3</span><span className="font-bold text-[#111827]">Platform</span><span>Step 3</span></div></section><section className="mt-6 rounded-[22px] border border-[#C9D3DE] bg-white p-5 shadow-[0_12px_30px_rgba(40,56,73,.12)] md:p-8" data-testid="create-bot-platform-card"><div className="relative"><button type="button" onClick={() => setDropdownOpen((open) => !open)} className={cx('flex h-14 w-full items-center justify-between rounded-xl border-2 bg-[#F8FAFC] px-4 text-left transition-colors focus:outline-none', dropdownOpen ? 'border-[#4674C8] ring-4 ring-[#4674C8]/10' : 'border-[#4674C8]')} aria-expanded={dropdownOpen} aria-haspopup="listbox" data-testid="button-select-bot-platform"><span className={cx('text-[16px] font-medium', selected ? 'text-[#1E293B]' : 'text-[#45556B]')}>{selected?.label ?? 'Select a platform'}</span><ChevronDown size={21} className={cx('text-[#111827] transition-transform', dropdownOpen && 'rotate-180')} /></button>{dropdownOpen && <div className="absolute inset-x-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-xl border border-[#AEB8C5] bg-white shadow-[0_12px_28px_rgba(30,43,60,.22)]" role="listbox" aria-label="Bot platforms" data-testid="menu-bot-platforms">{botPlatformOptions.map((platform) => <button type="button" role="option" aria-selected={selectedPlatform === platform.id} key={platform.id} onClick={() => selectPlatform(platform.id)} className={cx('flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[#EEF4FC]', selectedPlatform === platform.id && 'bg-[#EEF4FC]')} data-testid={`option-bot-platform-${platform.id}`}><span className="size-2.5 rounded-full" style={{ backgroundColor: platform.accent }} /><span className="flex-1"><span className="block text-[15px] font-medium text-[#141A24]">{platform.label}</span><span className="mt-0.5 block font-mono text-[9px] uppercase tracking-wider text-[#7F8B9B]">{platform.detail}</span></span>{selectedPlatform === platform.id && <Check size={16} className="text-[#4674C8]" />}</button>)}</div>}</div>{verified && <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#B9DFD4] bg-[#EAF8F4] px-3.5 py-3 text-[11px] font-bold text-[#176B62]" role="status" data-testid="status-bot-platform-verified"><Check size={15} /> {selected?.label} is ready for bot setup.</div>}<div className="mt-10 flex items-center justify-between gap-4"><button type="button" onClick={() => navigate('/messenger')} className="rounded-lg px-2 py-2 text-[14px] font-bold text-[#111827] transition-colors hover:bg-[#F0F2F5]" data-testid="button-back-create-bot">Back</button><button type="button" disabled={!selectedPlatform} onClick={() => setVerified(true)} className="rounded-xl bg-[#AEC2E8] px-8 py-3.5 text-[14px] font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-[#94ADDC] disabled:cursor-not-allowed disabled:opacity-60" data-testid="button-verify-bot-platform">{verified ? 'Verified' : 'Verify'}</button></div></section></div></div></div></PageFrame>;
 }
 
 function ActivityPage() {
@@ -368,7 +394,7 @@ function NotFoundPage() {
 }
 
 function Router({ commandList, onCreateCommand, modules, onToggleModule, messengerConversations, messengerRules, messengerBotEnabled, onMessengerConversationsChange, onMessengerRulesChange, onMessengerBotEnabledChange }: { commandList: Command[]; onCreateCommand: (input: NewCommandInput) => void; modules: BotModule[]; onToggleModule: (id: string) => void; messengerConversations: MessengerConversation[]; messengerRules: MessengerBotRule[]; messengerBotEnabled: boolean; onMessengerConversationsChange: (next: MessengerConversation[]) => void; onMessengerRulesChange: (next: MessengerBotRule[]) => void; onMessengerBotEnabledChange: (next: boolean) => void }) {
-  return <Switch><Route path="/" component={() => <OverviewPage commandList={commandList} />} /><Route path="/commands/:id" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/commands" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/messenger" component={() => <MessengerPage conversations={messengerConversations} rules={messengerRules} botEnabled={messengerBotEnabled} onConversationsChange={onMessengerConversationsChange} onRulesChange={onMessengerRulesChange} onBotEnabledChange={onMessengerBotEnabledChange} />} /><Route path="/channels" component={() => <ChannelsPage commandList={commandList} />} /><Route path="/activity" component={ActivityPage} /><Route path="/settings" component={() => <SettingsPage modules={modules} onToggleModule={onToggleModule} />} /><Route component={NotFoundPage} /></Switch>;
+  return <Switch><Route path="/" component={() => <OverviewPage commandList={commandList} />} /><Route path="/commands/:id" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/commands" component={() => <CommandsPage commandList={commandList} onCreateCommand={onCreateCommand} />} /><Route path="/messenger" component={() => <MessengerPage conversations={messengerConversations} rules={messengerRules} botEnabled={messengerBotEnabled} onConversationsChange={onMessengerConversationsChange} onRulesChange={onMessengerRulesChange} onBotEnabledChange={onMessengerBotEnabledChange} />} /><Route path="/create-bot" component={CreateBotPage} /><Route path="/channels" component={() => <ChannelsPage commandList={commandList} />} /><Route path="/activity" component={ActivityPage} /><Route path="/settings" component={() => <SettingsPage modules={modules} onToggleModule={onToggleModule} />} /><Route component={NotFoundPage} /></Switch>;
 }
 
 function App() {
