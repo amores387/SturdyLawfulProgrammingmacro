@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Route, Switch, Link, useLocation, useParams, Router as WouterRouter } from 'wouter';
 import {
-  Activity, AlertTriangle, ArrowUpRight, Bell, Bot, Check, ChevronRight, CircleHelp,
+  Activity, AlertTriangle, ArrowUpRight, Bell, Bot, Cat, Check, CheckCircle2, ChevronRight, CircleHelp,
   ChevronDown, Command as CommandIcon, Copy, Gauge, Hash, LayoutDashboard, Menu, MessageCircle,
-  MoreHorizontal, Search, Settings,
+  MoreHorizontal, Plus, Search, Settings,
   Shield, SlidersHorizontal, Sparkles, Terminal, UserRound, Wifi, X, Zap,
 } from 'lucide-react';
 import { activityEvents, commands, optionalBots, platforms, type ActivityEvent, type BotModule, type Command, type CommandCategory, type CommandStatus, type PlatformId } from '@/lib/data';
@@ -358,9 +358,15 @@ const botPlatformOptions: Array<{ id: BotPlatform; label: string; detail: string
 
 function CreateBotPage() {
   const [, navigate] = useLocation();
-  const [selectedPlatform, setSelectedPlatform] = useState<BotPlatform | ''>('');
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [nickname, setNickname] = useState('');
+  const [prefix, setPrefix] = useState('/');
+  const [selectedPlatform, setSelectedPlatform] = useState<BotPlatform>('facebook-messenger');
+  const [appstate, setAppstate] = useState('');
+  const [admins, setAdmins] = useState(['']);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [created, setCreated] = useState(false);
   const selected = botPlatformOptions.find((platform) => platform.id === selectedPlatform);
 
   const selectPlatform = (id: BotPlatform) => {
@@ -369,7 +375,118 @@ function CreateBotPage() {
     setDropdownOpen(false);
   };
 
-  return <PageFrame title="Create bot" eyebrow="Command control / Bot builder"><div className="mx-auto max-w-[980px]"><div className="bot-setup-surface -mx-5 min-h-[calc(100dvh-132px)] px-5 py-7 md:-mx-9 md:px-9 md:py-12"><div className="mx-auto max-w-[720px]"><div className="fade-up mb-8"><p className="font-mono text-[10px] uppercase tracking-[.16em] text-[#3F6BAA]">Bot builder / Setup</p><h2 className="mt-2 text-[30px] font-extrabold tracking-[-.06em] text-[#101827] md:text-[36px]">Create New Bot</h2><p className="mt-2 max-w-xl text-[14px] leading-relaxed text-[#3E4C60]">Set up your bot in three steps. Each field is verified before you proceed.</p></div><section className="rounded-[22px] border border-[#C9D3DE] bg-white p-5 shadow-[0_12px_30px_rgba(40,56,73,.12)] md:p-8" data-testid="create-bot-flow"><div className="flex items-center gap-3 md:gap-5"><div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#4674C8] text-white shadow-[0_0_0_4px_#E5EDF9]"><Check size={21} strokeWidth={3} /></div><div className="h-1 flex-1 rounded-full bg-[#9BBBEA]" /><div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#4674C8] font-mono text-[14px] font-bold text-white shadow-[0_0_0_4px_#E5EDF9]">2</div><div className="h-1 flex-1 rounded-full bg-[#D7DADD]" /><div className="flex size-11 shrink-0 items-center justify-center rounded-full border-2 border-[#E3E5E8] font-mono text-[14px] text-[#A8ADB5]">3</div></div><div className="mt-4 grid grid-cols-3 items-center text-center text-[12px] text-[#7F8792]"><span>Step 1 of 3</span><span className="font-bold text-[#111827]">Platform</span><span>Step 3</span></div></section><section className="mt-6 rounded-[22px] border border-[#C9D3DE] bg-white p-5 shadow-[0_12px_30px_rgba(40,56,73,.12)] md:p-8" data-testid="create-bot-platform-card"><div className="relative"><button type="button" onClick={() => setDropdownOpen((open) => !open)} className={cx('flex h-14 w-full items-center justify-between rounded-xl border-2 bg-[#F8FAFC] px-4 text-left transition-colors focus:outline-none', dropdownOpen ? 'border-[#4674C8] ring-4 ring-[#4674C8]/10' : 'border-[#4674C8]')} aria-expanded={dropdownOpen} aria-haspopup="listbox" data-testid="button-select-bot-platform"><span className={cx('text-[16px] font-medium', selected ? 'text-[#1E293B]' : 'text-[#45556B]')}>{selected?.label ?? 'Select a platform'}</span><ChevronDown size={21} className={cx('text-[#111827] transition-transform', dropdownOpen && 'rotate-180')} /></button>{dropdownOpen && <div className="absolute inset-x-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-xl border border-[#AEB8C5] bg-white shadow-[0_12px_28px_rgba(30,43,60,.22)]" role="listbox" aria-label="Bot platforms" data-testid="menu-bot-platforms">{botPlatformOptions.map((platform) => <button type="button" role="option" aria-selected={selectedPlatform === platform.id} key={platform.id} onClick={() => selectPlatform(platform.id)} className={cx('flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[#EEF4FC]', selectedPlatform === platform.id && 'bg-[#EEF4FC]')} data-testid={`option-bot-platform-${platform.id}`}><span className="size-2.5 rounded-full" style={{ backgroundColor: platform.accent }} /><span className="flex-1"><span className="block text-[15px] font-medium text-[#141A24]">{platform.label}</span><span className="mt-0.5 block font-mono text-[9px] uppercase tracking-wider text-[#7F8B9B]">{platform.detail}</span></span>{selectedPlatform === platform.id && <Check size={16} className="text-[#4674C8]" />}</button>)}</div>}</div>{verified && <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#B9DFD4] bg-[#EAF8F4] px-3.5 py-3 text-[11px] font-bold text-[#176B62]" role="status" data-testid="status-bot-platform-verified"><Check size={15} /> {selected?.label} is ready for bot setup.</div>}<div className="mt-10 flex items-center justify-between gap-4"><button type="button" onClick={() => navigate('/messenger')} className="rounded-lg px-2 py-2 text-[14px] font-bold text-[#111827] transition-colors hover:bg-[#F0F2F5]" data-testid="button-back-create-bot">Back</button><button type="button" disabled={!selectedPlatform} onClick={() => setVerified(true)} className="rounded-xl bg-[#AEC2E8] px-8 py-3.5 text-[14px] font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-[#94ADDC] disabled:cursor-not-allowed disabled:opacity-60" data-testid="button-verify-bot-platform">{verified ? 'Verified' : 'Verify'}</button></div></section></div></div></div></PageFrame>;
+  const canContinueIdentity = nickname.trim().length > 0 && prefix.trim().length > 0;
+  const canVerifyPlatform = appstate.trim().length > 0 && admins.some((admin) => admin.trim().length > 0);
+  const stepLabel = step === 1 ? 'Identity' : step === 2 ? 'Platform' : 'Review';
+
+  const addAdmin = () => setAdmins((current) => [...current, '']);
+  const updateAdmin = (index: number, value: string) => setAdmins((current) => current.map((admin, itemIndex) => itemIndex === index ? value : admin));
+
+  const handleVerify = () => {
+    if (!canVerifyPlatform) return;
+    setVerified(true);
+    setStep(3);
+  };
+
+  return <div className="bot-reference-app min-h-[100dvh] bg-[#e6eef7] text-[#111827]" data-testid="create-bot-page">
+    <header className="bot-reference-header sticky top-0 z-30 flex h-[80px] items-center justify-between border-b border-[#AEBBCC] bg-white px-7 shadow-[0_1px_0_rgba(255,255,255,.7)] md:px-10">
+      <div className="flex items-center gap-3 text-[#4674C8]">
+        <Cat size={34} strokeWidth={2.1} />
+      </div>
+      <div className="text-[25px] font-bold tracking-[-.04em] text-[#4674C8]">Cat-Bot</div>
+      <button type="button" onClick={() => navigate('/messenger')} className="rounded-lg p-1 text-[#111827] transition-colors hover:bg-[#EEF2F8]" aria-label="Open menu" data-testid="button-create-bot-menu"><Menu size={29} strokeWidth={2} /></button>
+    </header>
+    <main className="mx-auto max-w-[980px] px-5 py-8 md:px-8 md:py-10">
+      <div className="mx-auto max-w-[720px]">
+        <div className="fade-up mb-9">
+          <h1 className="text-[30px] font-extrabold tracking-[-.055em] md:text-[36px]">Create New Bot</h1>
+          <p className="mt-2 max-w-[620px] text-[16px] leading-relaxed text-[#35445A]">Set up your bot in three steps. Each field is verified before you proceed.</p>
+        </div>
+
+        <section className="rounded-[19px] border border-[#C6CFDA] bg-white p-5 shadow-[0_3px_7px_rgba(30,43,60,.19)] md:p-7" data-testid="create-bot-flow">
+          <div className="flex items-center gap-3 md:gap-5">
+            {([1, 2, 3] as const).map((item, index) => <div className="contents" key={item}>
+              <div className={cx('flex size-11 shrink-0 items-center justify-center rounded-full text-[14px] font-bold transition-colors', step > item ? 'bg-[#4674C8] text-white shadow-[0_0_0_4px_#E5EDF9]' : step === item ? 'bg-[#4674C8] text-white shadow-[0_0_0_4px_#E5EDF9]' : 'border-2 border-[#E4E6E9] bg-white text-[#A8ADB5]')} data-testid={`create-bot-step-${item}`}>
+                {step > item ? <Check size={20} strokeWidth={3} /> : item}
+              </div>
+              {index < 2 && <div className={cx('h-1 flex-1 rounded-full transition-colors', step > item ? 'bg-[#9BBBEA]' : 'bg-[#D7DADD]')} />}
+            </div>)}
+          </div>
+          <div className="mt-4 grid grid-cols-3 items-center text-center text-[12px] text-[#7F8792]">
+            <span>Step {step} of 3</span>
+            <span className="font-bold text-[#111827]">{stepLabel}</span>
+            <span>{step === 3 ? 'Ready' : 'Step 3'}</span>
+          </div>
+        </section>
+
+        {step === 1 && <section className="mt-6 rounded-[19px] border border-[#C6CFDA] bg-white p-7 shadow-[0_3px_7px_rgba(30,43,60,.19)] md:p-8" data-testid="create-bot-identity-card">
+          <h2 className="text-[26px] font-extrabold tracking-[-.045em]">Bot Identity</h2>
+          <p className="mt-2 max-w-[570px] text-[17px] leading-relaxed text-[#35445A]">Give your bot a name and choose a command trigger prefix.</p>
+          <div className="mt-6 space-y-6">
+            <label className="block text-[15px] font-bold">Nickname <span className="text-[#B3263E]">*</span>
+              <input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="e.g. Cat Bot" className="reference-input mt-2" data-testid="input-bot-nickname" />
+              <span className="mt-2 block text-[16px] font-normal leading-relaxed text-[#35445A]">Displayed as the bot's identity in your dashboard.</span>
+            </label>
+            <label className="block text-[15px] font-bold">Command Prefix <span className="text-[#B3263E]">*</span>
+              <input value={prefix} onChange={(event) => setPrefix(event.target.value)} placeholder="e.g. /" className="reference-input mt-2 border-[#4674C8]" data-testid="input-bot-prefix" />
+              <span className="mt-2 block text-[16px] font-normal leading-relaxed text-[#35445A]">The character users type before a command, e.g. <code className="rounded bg-[#EEF0F4] px-1.5 py-0.5 font-mono text-[14px]">/help</code>.</span>
+            </label>
+          </div>
+          <div className="mt-8 flex items-center justify-between gap-4">
+            <button type="button" onClick={() => navigate('/messenger')} className="rounded-lg px-2 py-2 text-[17px] font-bold transition-colors hover:bg-[#F0F2F5]" data-testid="button-cancel-create-bot">Cancel</button>
+            <button type="button" disabled={!canContinueIdentity} onClick={() => setStep(2)} className="reference-primary-button" data-testid="button-continue-bot-identity">Continue</button>
+          </div>
+        </section>}
+
+        {step === 2 && <section className="mt-6 rounded-[19px] border border-[#C6CFDA] bg-white p-7 shadow-[0_3px_7px_rgba(30,43,60,.19)] md:p-8" data-testid="create-bot-platform-card">
+          <h2 className="text-[26px] font-extrabold tracking-[-.045em]">Platform &amp; Credentials</h2>
+          <p className="mt-2 max-w-[590px] text-[17px] leading-relaxed text-[#35445A]">Choose a messaging platform and provide the required credentials. Tap Verify before continuing.</p>
+          <div className="mt-6">
+            <label className="block text-[15px] font-bold">Platform <span className="text-[#B3263E]">*</span></label>
+            <div className="relative mt-2">
+              <button type="button" onClick={() => setDropdownOpen((open) => !open)} className={cx('flex h-14 w-full items-center justify-between rounded-xl border-2 bg-white px-4 text-left transition-colors focus:outline-none', dropdownOpen ? 'border-[#4674C8] ring-4 ring-[#4674C8]/10' : 'border-[#99A8BB]')} aria-expanded={dropdownOpen} aria-haspopup="listbox" data-testid="button-select-bot-platform">
+                <span className="text-[17px] font-medium">{selected?.label}</span><ChevronDown size={21} />
+              </button>
+              {dropdownOpen && <div className="absolute inset-x-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-xl border border-[#AEB8C5] bg-white shadow-[0_12px_28px_rgba(30,43,60,.22)]" role="listbox" aria-label="Bot platforms" data-testid="menu-bot-platforms">{botPlatformOptions.map((platform) => <button type="button" role="option" aria-selected={selectedPlatform === platform.id} key={platform.id} onClick={() => selectPlatform(platform.id)} className={cx('flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-[#EEF4FC]', selectedPlatform === platform.id && 'bg-[#EEF4FC]')} data-testid={`option-bot-platform-${platform.id}`}><span className="size-2.5 rounded-full" style={{ backgroundColor: platform.accent }} /><span className="flex-1 text-[15px] font-medium">{platform.label}</span>{selectedPlatform === platform.id && <Check size={16} className="text-[#4674C8]" />}</button>)}</div>}
+            </div>
+          </div>
+          <div className="mt-7">
+            <h3 className="text-[15px] font-bold">Credentials</h3>
+            <label className="mt-5 block text-[15px] font-bold">{selectedPlatform === 'discord' ? 'Bot Token' : selectedPlatform === 'telegram' ? 'Bot Token' : 'Appstate'}</label>
+            <textarea value={appstate} onChange={(event) => setAppstate(event.target.value)} placeholder={selectedPlatform === 'discord' ? 'Paste your Discord bot token here' : selectedPlatform === 'telegram' ? 'Paste your Telegram bot token here' : 'Paste your Facebook appstate JSON here'} className="reference-textarea mt-2" data-testid="input-bot-credentials" />
+          </div>
+          <div className="mt-7">
+            <div className="flex items-start justify-between gap-3">
+              <div><h3 className="text-[15px] font-bold">Bot Admins</h3><p className="mt-1 text-[15px] leading-relaxed text-[#35445A]">User IDs that have admin control over this bot.</p></div>
+              <button type="button" onClick={addAdmin} className="flex shrink-0 items-center gap-1 text-[15px] font-bold text-[#4674C8] hover:underline" data-testid="button-add-bot-admin"><Plus size={17} /> Add</button>
+            </div>
+            <div className="mt-4 space-y-3">{admins.map((admin, index) => <input key={index} value={admin} onChange={(event) => updateAdmin(index, event.target.value)} placeholder={`User ID ${index + 1}`} className="reference-input" data-testid={`input-bot-admin-${index}`} />)}</div>
+          </div>
+          {verified && <div className="mt-5 flex items-center gap-2 rounded-xl border border-[#B9DFD4] bg-[#EAF8F4] px-3.5 py-3 text-[12px] font-bold text-[#176B62]" role="status" data-testid="status-bot-platform-verified"><CheckCircle2 size={16} /> Credentials verified.</div>}
+          <div className="mt-8 flex items-center justify-between gap-4">
+            <button type="button" onClick={() => setStep(1)} className="rounded-lg px-2 py-2 text-[17px] font-bold transition-colors hover:bg-[#F0F2F5]" data-testid="button-back-create-bot">Back</button>
+            <button type="button" disabled={!canVerifyPlatform} onClick={handleVerify} className="reference-primary-button disabled:bg-[#AEC2E8]" data-testid="button-verify-bot-platform">Verify</button>
+          </div>
+        </section>}
+
+        {step === 3 && <section className="mt-6 rounded-[19px] border border-[#C6CFDA] bg-white p-7 shadow-[0_3px_7px_rgba(30,43,60,.19)] md:p-8" data-testid="create-bot-review-card">
+          <div className="flex size-14 items-center justify-center rounded-full bg-[#E5F4EF] text-[#2A9D8F]"><CheckCircle2 size={28} /></div>
+          <h2 className="mt-5 text-[26px] font-extrabold tracking-[-.045em]">Review &amp; Create</h2>
+          <p className="mt-2 text-[17px] leading-relaxed text-[#35445A]">Everything is ready. Review your bot details before creating it.</p>
+          <div className="mt-6 divide-y divide-[#E1E5EA] rounded-xl border border-[#D7DEE7]">
+            <div className="flex items-center justify-between gap-4 px-4 py-4"><span className="text-[14px] text-[#667388]">Nickname</span><span className="text-right text-[15px] font-bold">{nickname}</span></div>
+            <div className="flex items-center justify-between gap-4 px-4 py-4"><span className="text-[14px] text-[#667388]">Command prefix</span><code className="rounded bg-[#EEF0F4] px-2 py-1 font-mono text-[14px]">{prefix}</code></div>
+            <div className="flex items-center justify-between gap-4 px-4 py-4"><span className="text-[14px] text-[#667388]">Platform</span><span className="text-right text-[15px] font-bold">{selected?.label}</span></div>
+          </div>
+          {created && <div className="mt-5 rounded-xl border border-[#B9DFD4] bg-[#EAF8F4] px-4 py-3 text-[13px] font-bold text-[#176B62]" role="status" data-testid="status-bot-created">Bot created successfully. Opening your workspace…</div>}
+          <div className="mt-8 flex items-center justify-between gap-4">
+            <button type="button" onClick={() => setStep(2)} className="rounded-lg px-2 py-2 text-[17px] font-bold transition-colors hover:bg-[#F0F2F5]" data-testid="button-back-bot-review">Back</button>
+            <button type="button" disabled={created} onClick={() => { setCreated(true); setTimeout(() => navigate('/messenger'), 900); }} className="reference-primary-button" data-testid="button-create-bot">Create Bot</button>
+          </div>
+        </section>}
+      </div>
+    </main>
+  </div>;
 }
 
 function ActivityPage() {

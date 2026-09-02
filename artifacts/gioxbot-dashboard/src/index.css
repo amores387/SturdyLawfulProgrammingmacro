@@ -119,3 +119,62 @@
 .panel-shadow { box-shadow: 0 12px 35px hsl(222 37% 14% / .06); }
 .dark .panel-shadow { box-shadow: 0 12px 35px hsl(222 42% 5% / .2); }
 .bot-setup-surface { background: #e6eef7; }
+.bot-reference-app { font-family: Arial, Helvetica, sans-serif; }
+.bot-reference-app input,
+.bot-reference-app textarea,
+.bot-reference-app button { font-family: Arial, Helvetica, sans-serif; }
+.bot-reference-header { min-height: 80px; }
+.reference-input {
+  display: block;
+  width: 100%;
+  height: 59px;
+  border: 2px solid #99a8bb;
+  border-radius: 11px;
+  background: #fff;
+  padding: 0 20px;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 400;
+  outline: none;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.reference-input::placeholder,
+.reference-textarea::placeholder { color: #35445a; opacity: 1; }
+.reference-input:focus,
+.reference-textarea:focus { border-color: #4674c8; box-shadow: 0 0 0 4px rgba(70,116,200,.12); }
+.reference-textarea {
+  display: block;
+  width: 100%;
+  min-height: 207px;
+  resize: vertical;
+  border: 2px solid #99a8bb;
+  border-radius: 11px;
+  background: #fff;
+  padding: 14px 20px;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.45;
+  outline: none;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.reference-primary-button {
+  min-width: 136px;
+  border-radius: 10px;
+  background: #4674c8;
+  padding: 14px 26px;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  transition: transform .18s ease, background-color .18s ease;
+}
+.reference-primary-button:hover:not(:disabled) { background: #3866b8; transform: translateY(-1px); }
+.reference-primary-button:disabled { cursor: not-allowed; background: #b7c9ec; }
+@media (max-width: 520px) {
+  .bot-reference-header { height: 80px; padding-left: 29px; padding-right: 29px; }
+  .bot-reference-app main { padding-left: 29px; padding-right: 29px; }
+  .bot-reference-app h1 { font-size: 29px; }
+  .bot-reference-app h2 { font-size: 25px; }
+  .bot-reference-app section { padding-left: 30px; padding-right: 30px; }
+  .bot-reference-app .bot-reference-header { padding-left: 29px; padding-right: 29px; }
+}
